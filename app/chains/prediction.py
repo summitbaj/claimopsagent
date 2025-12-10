@@ -46,6 +46,20 @@ class PredictionChain:
         """
         Predicts if a claim will fail based on similar historical claims.
         """
+        # Mock mode: Return mock prediction without calling OpenAI
+        if settings.MOCK_MODE:
+            print("🎭 Mock mode: Returning mock prediction")
+            return {
+                "prediction": "FAIL",
+                "confidence_score": 0.85,
+                "top_reasons": [
+                    "Missing required modifier GW for Hospice service",
+                    "Service line population failed",
+                    "Potential billing code mismatch"
+                ],
+                "similar_claim_ids": ["H-1001", "H-1002"]
+            }
+        
         # 1. Fetch live claim data
         if self._is_uuid(claim_id):
             query = f"smvs_claimid eq {claim_id}"

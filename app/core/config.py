@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     CLIENT_SECRET: str | None = None
     TENANT_ID: str | None = None
 
+    # Mock Mode (for testing without real API connections)
+    MOCK_MODE: bool = False
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 settings = Settings()

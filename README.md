@@ -63,7 +63,10 @@ An AI-powered healthcare claims processing system that predicts claim outcomes, 
    OPENAI_API_KEY=your-openai-api-key
    DATAVERSE_URL=https://your-org.crm.dynamics.com
    LANGCHAIN_TRACING_V2=false
+   MOCK_MODE=true  # Set to false for production
    ```
+
+   > **💡 Mock Mode**: When `MOCK_MODE=true`, the application returns mock data without making real API calls to Dataverse or OpenAI. Perfect for local testing!
 
 5. **Run the backend**
    ```bash
@@ -153,9 +156,13 @@ claimopsagent/
 ## Development
 
 ### Mock Mode
-For local development without a real Dataverse instance, the application supports mock mode:
-- Set `DATAVERSE_URL=https://dummy-org.crm.dynamics.com` in `.env`
-- Mock data will be returned for testing
+For local development and testing without real API connections:
+- Set `MOCK_MODE=true` in `.env`
+- Mock data will be returned for Dataverse queries
+- OpenAI calls will be skipped with mock predictions
+- Perfect for testing the UI and workflows
+
+**Note**: You can still use a dummy Dataverse URL if needed, but `MOCK_MODE` is the recommended way to enable mock responses.
 
 ### Running Tests
 ```bash

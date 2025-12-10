@@ -76,7 +76,7 @@ class DataverseClient:
             print(f"Params: {params}")
             print(f"Token present: {'Yes' if self.token else 'No'}")
             
-            if "dummy" in self.base_url:
+            if settings.MOCK_MODE:
                 print("Mock mode active. Returning user provided claim.")
                 return [{
                     "smvs_claimid": "41807965-3611-f011-9988-000d3a30044f",
@@ -116,7 +116,7 @@ class DataverseClient:
              print(f"GET {endpoint}")
              print(f"Params: {params}")
 
-             if "dummy" in self.base_url:
+             if settings.MOCK_MODE:
                 return []
              response = requests.get(endpoint, headers=self._headers(), params=params)
              
@@ -137,7 +137,7 @@ class DataverseClient:
              print(f"PATCH {endpoint}")
              print(f"Payload: {updates}")
 
-             if "dummy" in self.base_url:
+             if settings.MOCK_MODE:
                 print(f"[MOCK] Updated {line_id} with {updates}")
                 return True
              
