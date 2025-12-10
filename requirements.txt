@@ -1,0 +1,14 @@
+langchain
+langchain-openai
+langchain-community
+langsmith
+requests
+pandas
+pydantic
+pydantic-settings
+python-dotenv
+chromadb
+tiktoken
+fastapi
+uvicorn
+azure-identity

@@ -1,0 +1,21 @@
+rules:
+  - id: "RULE-HOSPICE-01"
+    description: "Add GW modifier if claim rejected for Hospice (CO-B9)"
+    trigger:
+      field: "smvs_remark"
+      contains: "CO-B9"
+    action:
+      target_entity: "smvs_servicelines"
+      update_field: "smvs_modifiers"
+      value: "GW"
+      criteria: "ALL" # Update all lines for this claim
+
+  - id: "RULE-DUP-02"
+    description: "Flag duplicate claims for manual review"
+    trigger:
+      field: "smvs_failurereason"
+      contains: "Duplicate Service"
+    action:
+      target_entity: "smvs_claims"
+      update_field: "smvs_status"
+      value: "Manual Review"
