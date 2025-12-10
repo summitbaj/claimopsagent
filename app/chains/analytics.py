@@ -75,6 +75,72 @@ class AnalyticsChain:
                     "failure_rate_percent": 30,
                     "avg_claim_amount": 2450.00,
                     "top_payer": "Medicare"
+                },
+                
+                # Payer/Insurance Analysis
+                "payer_performance": [
+                    {
+                        "payer": "Medicare",
+                        "total_claims": 60,
+                        "approved": 35,
+                        "failed": 20,
+                        "pending": 5,
+                        "failure_rate": 33.3,
+                        "avg_processing_days": 4.2
+                    },
+                    {
+                        "payer": "Blue Cross Blue Shield",
+                        "total_claims": 40,
+                        "approved": 28,
+                        "failed": 10,
+                        "pending": 2,
+                        "failure_rate": 25.0,
+                        "avg_processing_days": 3.1
+                    },
+                    {
+                        "payer": "UnitedHealthcare",
+                        "total_claims": 30,
+                        "approved": 18,
+                        "failed": 10,
+                        "pending": 2,
+                        "failure_rate": 33.3,
+                        "avg_processing_days": 3.8
+                    },
+                    {
+                        "payer": "Aetna",
+                        "total_claims": 20,
+                        "approved": 14,
+                        "failed": 5,
+                        "pending": 1,
+                        "failure_rate": 25.0,
+                        "avg_processing_days": 2.9
+                    }
+                ],
+                
+                # Failure reasons by payer (drill-down data)
+                "payer_failure_details": {
+                    "Medicare": {
+                        "Missing Modifier GW": 10,
+                        "Incomplete Service Lines": 6,
+                        "Invalid Procedure Code": 3,
+                        "Missing Documentation": 1
+                    },
+                    "Blue Cross Blue Shield": {
+                        "Incomplete Service Lines": 4,
+                        "Invalid Procedure Code": 3,
+                        "Missing Documentation": 2,
+                        "Billing Code Mismatch": 1
+                    },
+                    "UnitedHealthcare": {
+                        "Missing Modifier GW": 5,
+                        "Invalid Procedure Code": 3,
+                        "Incomplete Service Lines": 2
+                    },
+                    "Aetna": {
+                        "Incomplete Service Lines": 2,
+                        "Invalid Procedure Code": 2,
+                        "Missing Documentation": 1
+                    }
                 }
             }
         

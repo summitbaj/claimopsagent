@@ -10,6 +10,7 @@ const API_URL = 'http://localhost:8000';
 export default function Dashboard() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [expandedPayer, setExpandedPayer] = useState(null);
 
     const { instance, accounts } = useMsal();
 
@@ -189,6 +190,88 @@ export default function Dashboard() {
                     </div>
                 )}
             </div>
+
+            {/* Payer/Insurance Performance Analysis */}
+            {data.payer_performance && (
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <h3 className="text-lg font-semibold mb-4">🏥 Insurance/Payer Performance Analysis</h3>
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="border-b-2 border-slate-200">
+                                    <th className="text-left py-3 px-4 font-semibold text-slate-700">Payer</th>
+                                    <th className="text-center py-3 px-4 font-semibold text-slate-700">Total</th>
+                                    <th className="text-center py-3 px-4 font-semibold text-green-700">Approved</th>
+                                    <th className="text-center py-3 px-4 font-semibold text-red-700">Failed</th>
+                                    <th className="text-center py-3 px-4 font-semibold text-orange-700">Pending</th>
+                                    <th className="text-center py-3 px-4 font-semibold text-slate-700">Failure Rate</th>
+                                    <th className="text-center py-3 px-4 font-semibold text-slate-700">Avg Days</th>
+                                    <th className="text-center py-3 px-4 font-semibold text-slate-700">Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {data.payer_performance.map((payer, idx) => (
+                                    <>
+                                        <tr
+                                            key={payer.payer}
+                                            className={`border-b border-slate-100 hover:bg-slate-50 ${payer.failure_rate > 30 ? 'bg-red-50' : ''
+                                                }`}
+                                        >
+                                            <td className="py-3 px-4 font-medium">{payer.payer}</td>
+                                            <td className="text-center py-3 px-4">{payer.total_claims}</td>
+                                            <td className="text-center py-3 px-4 text-green-600 font-semibold">{payer.approved}</td>
+                                            <td className="text-center py-3 px-4 text-red-600 font-semibold">{payer.failed}</td>
+                                            <td className="text-center py-3 px-4 text-orange-600">{payer.pending}</td>
+                                            <td className="text-center py-3 px-4">
+                                                <span className={`px-2 py-1 rounded-full text-sm font-semibold ${payer.failure_rate > 30
+                                                        ? 'bg-red-100 text-red-700'
+                                                        : 'bg-green-100 text-green-700'
+                                                    }`}>
+                                                    {payer.failure_rate}%
+                                                </span>
+                                            </td>
+                                            <td className="text-center py-3 px-4">{payer.avg_processing_days}d</td>
+                                            <td className="text-center py-3 px-4">
+                                                <button
+                                                    onClick={() => setExpandedPayer(expandedPayer === payer.payer ? null : payer.payer)}
+                                                    className="text-blue-600 hover:text-blue-800 font-medium text-sm"
+                                                >
+                                                    {expandedPayer === payer.payer ? '▼ Hide' : '▶ Show'}
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        {expandedPayer === payer.payer && data.payer_failure_details[payer.payer] && (
+                                            <tr key={`${payer.payer}-details`}>
+                                                <td colSpan="8" className="bg-slate-50 p-4">
+                                                    <div className="ml-8">
+                                                        <h4 className="font-semibold text-sm text-slate-700 mb-2">
+                                                            🔍 Failure Reasons for {payer.payer}:
+                                                        </h4>
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            {Object.entries(data.payer_failure_details[payer.payer]).map(([reason, count]) => (
+                                                                <div key={reason} className="flex justify-between bg-white p-2 rounded border border-slate-200">
+                                                                    <span className="text-sm text-slate-600">{reason}</span>
+                                                                    <span className="text-sm font-semibold text-red-600">{count} claims</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <p className="text-sm text-blue-800">
+                            <strong>💡 Insight:</strong> Medicare and UnitedHealthcare have the highest failure rates (33.3%).
+                            Click "Show" to see specific failure reasons for each payer.
+                        </p>
+                    </div>
+                </div>
+            )}
 
             {/* Pattern Insights */}
             <div className="bg-gradient-to-r from-orange-50 to-red-50 p-6 rounded-xl border border-orange-200">
