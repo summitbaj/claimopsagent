@@ -4,6 +4,8 @@ from typing import Optional, Dict, Any, List
 from azure.identity import DefaultAzureCredential, InteractiveBrowserCredential
 from azure.core.exceptions import ClientAuthenticationError
 from app.core.config import settings
+from app.dataverse.mock import get_mock_claims, get_mock_service_lines
+
 
 class DataverseClient:
     def __init__(self, token: Optional[str] = None):
@@ -51,7 +53,7 @@ class DataverseClient:
                  return "mock_token"
         
         return "mock_token"
-
+    
     def _headers(self) -> Dict[str, str]:
         return {
             "Authorization": f"Bearer {self._get_token()}",
@@ -60,93 +62,120 @@ class DataverseClient:
             "OData-Version": "4.0",
             "Prefer": "odata.include-annotations=\"*\""
         }
-
-    def fetch_claims(self, filter_query: str = "", top: int = 10) -> List[Dict[str, Any]]:
-        """Fetches claims from smvs_claims."""
-        endpoint = f"{self.base_url}/api/data/v9.2/smvs_claims"
-        params = {"$top": top}
-        if filter_query:
-            params["$filter"] = filter_query
-        
-        params["$select"] = "smvs_claimid,smvs_name,smvs_totalamount,smvs_status,smvs_failurereason,smvs_remark"
-
+    
+    def fetchxml_query(self, fetchxml: str, entity: str, token: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Generic method to query Dataverse using FetchXML.
+        Args:
+            fetchxml: The FetchXML string
+            entity: The entity logical name (e.g., 'smvs_claims', 'smvs_servicelines')
+            token: Optional access token (overrides client token)
+        Returns:
+            List of records (dicts)
+        """
+        import logging
+        logger = logging.getLogger("dataverse_fetchxml_tool")
+        url = f"{self.base_url}/api/data/v9.2/{entity}?fetchXml="
+        logger.debug(f"[FetchXMLTool] FetchXML: {fetchxml[:100]}...")
+        response = requests.get(url, headers=self._headers(), params={"fetchXml": fetchxml})
         try:
-            print(f"------------ DATAVERSE REQUEST ------------")
-            print(f"GET {endpoint}")
-            print(f"Params: {params}")
-            print(f"Token present: {'Yes' if self.token else 'No'}")
-            
-            if settings.MOCK_MODE:
-                print("Mock mode active. Returning user provided claim.")
-                return [{
-                    "smvs_claimid": "41807965-3611-f011-9988-000d3a30044f",
-                    "smvs_name": "Claim for Delivery Managemenr Test",
-                    "smvs_totalamount": 0,
-                    "smvs_status": 153940019,
-                    "smvs_failurereason": "Populate Service Line Failed",
-                    "smvs_remark": None
-                }] 
-            
-            response = requests.get(endpoint, headers=self._headers(), params=params)
-            
-            print(f"Response Status: {response.status_code}")
-            if response.status_code != 200:
-                print(f"Response Body: {response.text}")
-            else:
-                data = response.json()
-                count = len(data.get("value", []))
-                print(f"Fetched {count} claims.")
-            print(f"-------------------------------------------")
-
             response.raise_for_status()
-            return response.json().get("value", [])
-        except Exception as e:
-            print(f"Error fetching claims: {e}")
-            return []
+        except requests.HTTPError as e:
+            logger.error(f"[FetchXMLTool] HTTP error: {e} | Response: {response.text}")
+            raise
+        return response.json().get("value", [])
 
-    def fetch_service_lines(self, claim_id: str) -> List[Dict[str, Any]]:
-        """Fetches lines for a specific claim."""
-        endpoint = f"{self.base_url}/api/data/v9.2/smvs_servicelines"
-        params = {
-            "$filter": f"_smvs_claim_value eq {claim_id}",
-            "$select": "smvs_servicelineid,smvs_name,smvs_procedurecode,smvs_modifiers,smvs_lineamount"
-        }
-        try:
-             print(f"------------ DATAVERSE REQUEST ------------")
-             print(f"GET {endpoint}")
-             print(f"Params: {params}")
+    def get_claim_by_id(self, claim_id: str, access_token: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Fetch a specific claim by ID using FetchXML.
+        """
+        from app.dataverse.fetchxml_templates import FETCHXML_CLAIM
+        filter_xml = f'<filter type="and"><condition attribute="smvs_claimid" operator="eq" value="{claim_id}" /></filter>'
+        fetchxml = FETCHXML_CLAIM.format(filter=filter_xml)
+        return self.fetchxml_query(fetchxml, "smvs_claims", token=access_token)
 
-             if settings.MOCK_MODE:
-                return []
-             response = requests.get(endpoint, headers=self._headers(), params=params)
-             
-             print(f"Response Status: {response.status_code}")
-             print(f"-------------------------------------------")
+    def get_historical_claims(self, filter_xml: str = '', access_token: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Fetch historical claims using FetchXML and optional filter.
+        """
+        from app.dataverse.fetchxml_templates import FETCHXML_HISTORICAL_CLAIMS
+        fetchxml = FETCHXML_HISTORICAL_CLAIMS.format(filter=filter_xml)
+        return self.fetchxml_query(fetchxml, "smvs_claims", token=access_token)
 
-             response.raise_for_status()
-             return response.json().get("value", [])
-        except Exception as e:
-            print(f"Error fetching lines: {e}")
-            return []
+    def get_service_lines_by_claim(self, claim_id: str, access_token: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Fetch service lines for a specific claim using FetchXML.
+        """
+        from app.dataverse.fetchxml_templates import FETCHXML_SERVICE_LINES
+        fetchxml = FETCHXML_SERVICE_LINES.format(claim_id=claim_id)
+        return self.fetchxml_query(fetchxml, "smvs_servicelines", token=access_token)
+
+    
 
     def update_service_line(self, line_id: str, updates: Dict[str, Any]) -> bool:
-        """Updates a service line entity."""
+        """
+        Updates a service line entity.
+        
+        Args:
+            line_id: The service line ID (GUID)
+            updates: Dictionary of fields to update
+            
+        Returns:
+            True if update was successful, False otherwise
+        """
         endpoint = f"{self.base_url}/api/data/v9.2/smvs_servicelines({line_id})"
+        
         try:
-             print(f"------------ DATAVERSE UPDATE ------------")
-             print(f"PATCH {endpoint}")
-             print(f"Payload: {updates}")
-
-             if settings.MOCK_MODE:
+            print(f"------------ DATAVERSE UPDATE ------------")
+            print(f"PATCH {endpoint}")
+            print(f"Payload: {updates}")
+            
+            if settings.MOCK_MODE:
                 print(f"[MOCK] Updated {line_id} with {updates}")
+                print(f"-------------------------------------------")
                 return True
-             
-             response = requests.patch(endpoint, headers=self._headers(), json=updates)
-             print(f"Response Status: {response.status_code}")
-             print(f"-------------------------------------------")
-             
-             response.raise_for_status()
-             return True
+            
+            response = requests.patch(endpoint, headers=self._headers(), json=updates)
+            print(f"Response Status: {response.status_code}")
+            print(f"-------------------------------------------")
+            
+            response.raise_for_status()
+            return True
         except Exception as e:
             print(f"Error updating line {line_id}: {e}")
+            print(f"-------------------------------------------")
+            return False
+
+    def update_claim(self, claim_id: str, updates: Dict[str, Any]) -> bool:
+        """
+        Updates a claim entity.
+        
+        Args:
+            claim_id: The claim ID (GUID)
+            updates: Dictionary of fields to update
+            
+        Returns:
+            True if update was successful, False otherwise
+        """
+        endpoint = f"{self.base_url}/api/data/v9.2/smvs_claims({claim_id})"
+        
+        try:
+            print(f"------------ DATAVERSE UPDATE ------------")
+            print(f"PATCH {endpoint}")
+            print(f"Payload: {updates}")
+            
+            if settings.MOCK_MODE:
+                print(f"[MOCK] Updated claim {claim_id} with {updates}")
+                print(f"-------------------------------------------")
+                return True
+            
+            response = requests.patch(endpoint, headers=self._headers(), json=updates)
+            print(f"Response Status: {response.status_code}")
+            print(f"-------------------------------------------")
+            
+            response.raise_for_status()
+            return True
+        except Exception as e:
+            print(f"Error updating claim {claim_id}: {e}")
+            print(f"-------------------------------------------")
             return False

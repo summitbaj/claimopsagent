@@ -1,12 +1,14 @@
+# app/chains/prediction.py
 from typing import Dict, Any, List
-import uuid
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.messages import HumanMessage, SystemMessage
+from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel, Field
-
+import json
 from app.core.config import settings
-from app.dataverse.client import DataverseClient
+from app.tools.dataverse_query_tool import get_claim_by_id, get_historical_claims, get_service_lines_by_claim
+from app.dataverse.schema_reference import dataverse_schema
+from fastapi import HTTPException
 
 class PredictionResult(BaseModel):
     prediction: str = Field(description="FAIL or PASS")
@@ -21,32 +23,15 @@ class PredictionChain:
             model="gpt-4.1-nano",
             temperature=0
         )
-        self.client = DataverseClient(token=token)
+        # Provide only the new FetchXML-based tools to the agent
+        self.tools = [get_claim_by_id, get_historical_claims, get_service_lines_by_claim]
+        self.agent = create_react_agent(self.llm, self.tools)
+        self.token = token  # Store the token
 
-    def _get_similar_claims(self, claim_data: Dict) -> List[Dict]:
+    async def predict(self, claim_id: str) -> Dict[str, Any]:
         """
-        Mock retrieval of similar historical claims.
-        In prod, this would embed the claim_data and query Chroma/FAISS.
+        Predicts if a claim will fail based on similar historical claims using the FetchXML-based tools.
         """
-        # Mock context 
-        return [
-            {"smvs_claimid": "H-1001", "outcome": "FAIL", "reason": "Missing Modifier GW for Hospice"},
-            {"smvs_claimid": "H-1002", "outcome": "PASS", "reason": "Correct Modifier Applied"}
-        ]
-
-
-    def _is_uuid(self, val):
-        try:
-            uuid.UUID(str(val))
-            return True
-        except ValueError:
-            return False
-
-    def predict(self, claim_id: str) -> Dict[str, Any]:
-        """
-        Predicts if a claim will fail based on similar historical claims.
-        """
-        # Mock mode: Return mock prediction without calling OpenAI
         if settings.MOCK_MODE:
             print("🎭 Mock mode: Returning mock prediction")
             return {
@@ -59,50 +44,56 @@ class PredictionChain:
                 ],
                 "similar_claim_ids": ["H-1001", "H-1002"]
             }
-        
-        # 1. Fetch live claim data
-        if self._is_uuid(claim_id):
-            query = f"smvs_claimid eq {claim_id}"
-        else:
-            query = f"smvs_claimid eq '{claim_id}'"
-            
-        claims = self.client.fetch_claims(query, top=1)
-        if not claims:
-            return {"error": "Claim not found"}
-        
-        claim = claims[0]
-        # Fetch lines for detail
-        lines = self.client.fetch_service_lines(claim_id)
-        claim["service_lines"] = lines
 
-        # 2. Retrieve context (RAG)
-        similar_claims = self._get_similar_claims(claim)
+        def build_schema_prompt():
+            lines = ["Available Dataverse tables and fields:"]
+            for table, fields in dataverse_schema.items():
+                lines.append(f"- {table}: {', '.join(fields)}")
+            return "\n".join(lines)
 
-        # 3. Construct Prompt
-        parser = JsonOutputParser(pydantic_object=PredictionResult)
-        
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are an expert Healthcare Claims Analyst. Predict if the following claim will FAIL or PASS based on the provided similar historical claims context. Return valid JSON."),
-            ("user", """
-            Current Claim Candidate:
-            {claim_data}
+        schema_prompt = build_schema_prompt()
+        messages = [
+            SystemMessage(content=f"""You are an expert Healthcare Claims Analyst working with Microsoft Dataverse.
+You have direct access to the Dataverse schema below. Use only the provided table and field names when using the available tools: get_claim_by_id, get_historical_claims, get_service_lines_by_claim.
 
-            Similar Historical Claims (Context):
-            {context}
+{schema_prompt}
+"""),
+            HumanMessage(content=f"""Analyze claim with ID: {claim_id}
 
-            Provide your prediction, confidence, top contributing reasons, and cite the similar claim IDs used.
-            
-            {format_instructions}
-            """)
-        ])
+WORKFLOW:
+1. Use the get_claim_by_id tool to query the primary claim using the correct table and column names from the schema above.
+2. Use the get_historical_claims tool to query similar historical claims (e.g., failed claims) using the schema above.
+3. (Optional) Use get_service_lines_by_claim to fetch service lines for the claim if needed.
+4. Analyze the patterns and make your prediction.
 
-        chain = prompt | self.llm | parser
+Return your final answer as a JSON object:
+{{
+    "prediction": "FAIL" or "PASS",
+    "confidence_score": 0.0 to 1.0,
+    "top_reasons": ["reason 1", "reason 2", "reason 3"],
+    "similar_claim_ids": ["id1", "id2", "id3"]
+}}
 
-        # 4. Invoke
-        result = chain.invoke({
-            "claim_data": str(claim),
-            "context": str(similar_claims),
-            "format_instructions": parser.get_format_instructions()
-        })
-        
-        return result
+The claim ID you're analyzing is: {claim_id}
+""")
+        ]
+
+        # Invoke the agent
+        result = await self.agent.ainvoke(
+            {"messages": messages, "self": self, "token": self.token},
+            config={"configurable": {"thread_id": claim_id}}
+        )
+
+        # Extract the final message
+        final_message = result["messages"][-1].content
+
+        # Parse the JSON response
+        try:
+            parsed_result = json.loads(final_message)
+            return parsed_result
+        except Exception:
+            # Check for token or credential errors in the LLM output
+            if "token" in final_message.lower() or "credential" in final_message.lower():
+                raise HTTPException(status_code=401, detail="Token missing or invalid for Dataverse access.")
+            # Otherwise, return a generic error
+            raise HTTPException(status_code=500, detail=f"LLM output not JSON: {final_message}")

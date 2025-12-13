@@ -6,9 +6,11 @@ from app.chains.prediction import PredictionChain
 from app.chains.guidance import GuidanceChain
 from app.chains.correction import CorrectionChain
 from app.chains.analytics import AnalyticsChain
+from dotenv import load_dotenv
 
 def main():
     setup_telemetry()
+    load_dotenv()
     
     parser = argparse.ArgumentParser(description="Intelligent Claims Agent CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")

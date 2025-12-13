@@ -1,0 +1,37 @@
+{
+  "claims": [
+    {
+      "smvs_claimid": "41807965-3611-f011-9988-000d3a30044f",
+      "smvs_name": "Claim for Delivery Management Test",
+      "smvs_claimed_amount": 1234.56,
+      "smvs_expected_amount_claim": 1200.00,
+      "smvs_claimstatus": 153940006,
+      "smvs_internal_state": 153940008,
+      "smvs_remark": "Populate Service Line Failed",
+      "smvs_error_description": null,
+      "statuscode": 1,
+      "statecode": 0,
+      "createdon": "2025-11-01T10:00:00Z",
+      "modifiedon": "2025-11-02T12:00:00Z",
+      "_smvs_patientid_value": "a1111111-1111-1111-1111-111111111111"
+    }
+  ],
+  "service_lines": [
+    {
+      "smvs_servicelineid": "9b807965-3611-f011-9988-000d3a30099a",
+      "smvs_name": "Service Line 1",
+      "smvs_proceduresservicesorsupplies": "90677",
+      "smvs_charges": 500.00,
+      "smvs_additional_modifiers": "GW",
+      "_smvs_claimid_value": "41807965-3611-f011-9988-000d3a30044f"
+    },
+    {
+      "smvs_servicelineid": "9b807965-3611-f011-9988-000d3a30099b",
+      "smvs_name": "Service Line 2",
+      "smvs_proceduresservicesorsupplies": "90772",
+      "smvs_charges": 734.56,
+      "smvs_additional_modifiers": "",
+      "_smvs_claimid_value": "41807965-3611-f011-9988-000d3a30044f"
+    }
+  ]
+}

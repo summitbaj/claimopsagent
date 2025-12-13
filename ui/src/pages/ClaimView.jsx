@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import axios from 'axios';
-import { AlertCircle, CheckCircle, ArrowRight } from 'lucide-react';
+import { AlertCircle, CheckCircle, ArrowRight, Sliders } from 'lucide-react';
 import clsx from 'clsx';
 import { useMsal } from "@azure/msal-react";
 import { loginRequest } from "../authConfig";
+import CustomPredictionPanel from '../components/CustomPredictionPanel';
 
 const API_URL = 'http://localhost:8000';
 
@@ -12,6 +13,7 @@ export default function ClaimView() {
     const [prediction, setPrediction] = useState(null);
     const [correction, setCorrection] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [activeTab, setActiveTab] = useState('standard'); // 'standard' or 'custom'
 
     const { instance, accounts } = useMsal();
 
@@ -69,8 +71,38 @@ export default function ClaimView() {
                 <p className="text-slate-500">Predict outcomes and apply auto-corrections.</p>
             </div>
 
-            {/* Input Section */}
-            <div className="flex gap-4">
+            {/* Tab Navigation */}
+            <div className="flex gap-2 border-b border-slate-200">
+                <button
+                    onClick={() => setActiveTab('standard')}
+                    className={clsx(
+                        "px-4 py-2 font-medium border-b-2 transition-colors",
+                        activeTab === 'standard'
+                            ? "border-blue-600 text-blue-600"
+                            : "border-transparent text-slate-600 hover:text-slate-900"
+                    )}
+                >
+                    Standard Prediction
+                </button>
+                <button
+                    onClick={() => setActiveTab('custom')}
+                    className={clsx(
+                        "px-4 py-2 font-medium border-b-2 transition-colors flex items-center gap-2",
+                        activeTab === 'custom'
+                            ? "border-blue-600 text-blue-600"
+                            : "border-transparent text-slate-600 hover:text-slate-900"
+                    )}
+                >
+                    <Sliders size={16} />
+                    Custom Criteria
+                </button>
+            </div>
+
+            {/* Standard Prediction Tab */}
+            {activeTab === 'standard' && (
+                <>
+                    {/* Input Section */}
+                    <div className="flex gap-4">
                 <input
                     type="text"
                     value={claimId}
@@ -151,6 +183,13 @@ export default function ClaimView() {
                         )}
                     </div>
                 </div>
+            )}
+                </>
+            )}
+
+            {/* Custom Prediction Tab */}
+            {activeTab === 'custom' && (
+                <CustomPredictionPanel />
             )}
         </div>
     );
