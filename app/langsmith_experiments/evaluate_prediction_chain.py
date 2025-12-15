@@ -33,7 +33,7 @@ except ValueError as e:
 # 3. Add examples (inputs/expected outputs) if needed
 examples = [
     {
-        "inputs": {"claim_id": "CLAIM123"},
+        "inputs": {"claim_id": "41fcffdf-65a3-f011-bbd3-00224802c180"},
         "outputs": {"prediction": "PASS"},  # Expected output for evaluation
     },
     # Add more examples as needed

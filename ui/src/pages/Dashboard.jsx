@@ -213,7 +213,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Top Failure Reasons */}
-                {data.failure_reasons && (
+                {data.failure_reasons && Object.keys(data.failure_reasons).length > 0 && (
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                         <h3 className="text-lg font-semibold mb-4">🚨 Top Failure Reasons</h3>
                         <ResponsiveContainer width="100%" height={300}>
@@ -229,7 +229,7 @@ export default function Dashboard() {
                 )}
 
                 {/* Claim Types Distribution */}
-                {data.claim_types && (
+                {data.claim_types && Object.keys(data.claim_types).length > 0 && (
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                         <h3 className="text-lg font-semibold mb-4">📋 Claim Types Breakdown</h3>
                         <ResponsiveContainer width="100%" height={300}>
@@ -311,7 +311,7 @@ export default function Dashboard() {
                                                 </button>
                                             </td>
                                         </tr>
-                                        {expandedPayer === payer.payer && data.payer_failure_details[payer.payer] && (
+                                        {expandedPayer === payer.payer && data.payer_failure_details && data.payer_failure_details[payer.payer] && (
                                             <tr key={`${payer.payer}-details`}>
                                                 <td colSpan="8" className="bg-slate-50 p-4">
                                                     <div className="ml-8">
