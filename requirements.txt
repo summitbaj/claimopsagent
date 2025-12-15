@@ -16,3 +16,6 @@ pywin32
 python-pptx
 pypdf
 python-docx
+langsmith
+openevals
+python-dotenv

@@ -3,6 +3,10 @@ from app.core.patch_chromadb import apply_chromadb_patch
 apply_chromadb_patch()
 # --- PYDANTIC V2 COMPATIBILITY PATCH END ---
 
+# Load environment variables first (including LANGSMITH_API_KEY)
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, HTTPException, Header, Depends, UploadFile, File
 import json
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,9 +26,15 @@ from app.chains.analytics import AnalyticsChain
 from app.chains.chat_agent import ChatAgent
 from app.chains.agent_types import ChatRequest
 from app.core.knowledge_base import KnowledgeBase
+from langsmith import Client, wrappers
 
 # Setup Telemetry on startup
 setup_telemetry()
+
+# LangSmith tracing is automatically enabled via environment variables:
+# - LANGCHAIN_TRACING_V2=true
+# - LANGSMITH_API_KEY=your-key
+# No additional code needed for automatic tracing of all LangChain chains
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -32,7 +42,10 @@ logger = logging.getLogger(__name__)
 
 # Debug: Check MOCK_MODE setting on startup
 from app.core.config import settings
+import os
 logger.info(f"🔧 MOCK_MODE is set to: {settings.MOCK_MODE}")
+logger.info(f"🔍 LangSmith Tracing: {os.getenv('LANGCHAIN_TRACING_V2', 'false')}")
+logger.info(f"🔑 LangSmith API Key: {'✓ Set' if os.getenv('LANGSMITH_API_KEY') else '✗ Not Set'}")
 
 app = FastAPI(title="Claims Intelligence Agent API")
 
