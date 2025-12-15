@@ -10,9 +10,16 @@ ENV_FILE = BASE_DIR / ".env"
 class Settings(BaseSettings):
     # LangSmith / OpenAI
     OPENAI_API_KEY: str
+    OPENAI_MODEL: str = "gpt-4.1-nano" # Default model
     LANGCHAIN_TRACING_V2: str = "false"
     LANGCHAIN_API_KEY: str | None = None
     LANGCHAIN_PROJECT: str = "ClaimsAgent"
+
+    # LLM Configuration
+    LLM_PROVIDER: str = "openai"  # "openai" or "groq"
+    GROQ_API_KEY: str | None = None
+    GROQ_API_URL: str | None = None
+    GROQ_MODEL: str = "llama-3.3-70b-versatile" # Default to robust Groq model
 
     # Dataverse
     DATAVERSE_URL: str

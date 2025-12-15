@@ -59,11 +59,19 @@ class ConfigurablePredictionChain:
     """
     
     def __init__(self, token: str = None):
-        self.llm = ChatOpenAI(
-            api_key=settings.OPENAI_API_KEY,
-            model="gpt-4o",
-            temperature=0
-        )
+        if settings.LLM_PROVIDER.lower() == "groq":
+            self.llm = ChatOpenAI(
+                api_key=settings.GROQ_API_KEY,
+                base_url=settings.GROQ_API_URL,
+                model=settings.GROQ_MODEL,
+                temperature=0
+            )
+        else:
+            self.llm = ChatOpenAI(
+                api_key=settings.OPENAI_API_KEY,
+                model=settings.OPENAI_MODEL,
+                temperature=0
+            )
         self.token = token
     
     def predict_with_criteria(

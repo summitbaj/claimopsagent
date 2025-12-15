@@ -1,0 +1,30 @@
+[
+  {
+    "filename": "test_upload.docx",
+    "file_type": "docx",
+    "units_processed": 1,
+    "chunks_created": 1,
+    "uploaded_at": "2025-12-15T04:30:59.016321"
+  },
+  {
+    "filename": "auto_test.docx",
+    "file_type": "docx",
+    "units_processed": 1,
+    "chunks_created": 1,
+    "uploaded_at": "2025-12-15T04:44:04.896870"
+  },
+  {
+    "filename": "Signetic Billing Portal Navigation(Version_ 2.0).pptx",
+    "file_type": "pptx",
+    "units_processed": 23,
+    "chunks_created": 25,
+    "uploaded_at": "2025-12-15T05:16:01.967867"
+  },
+  {
+    "filename": "Signetic Billing Portal Navigation(Version_ 2.0).pptx",
+    "file_type": "pptx",
+    "units_processed": 23,
+    "chunks_created": 25,
+    "uploaded_at": "2025-12-15T05:16:02.484972"
+  }
+]

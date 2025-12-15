@@ -1,0 +1,16 @@
+Test Knowledge Base Document
+
+This is a test document to verify the file upload functionality works correctly in the ClaimOps Agent application.
+
+## Test Content
+
+This document contains sample information that should be:
+1. Successfully uploaded to the knowledge base
+2. Chunked and embedded into ChromaDB
+3. Retrievable through the chat interface
+
+## Claims Information (Sample)
+
+- Claim processing requires proper billing codes
+- Modifiers must be correct for claim acceptance
+- Amount validation is critical for claim processing

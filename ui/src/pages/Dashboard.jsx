@@ -11,42 +11,67 @@ export default function Dashboard() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [expandedPayer, setExpandedPayer] = useState(null);
+    const [dateRange, setDateRange] = useState({ start: '', end: '' });
+    const [autoRefresh, setAutoRefresh] = useState(false);
 
     const { instance, accounts } = useMsal();
 
-    useEffect(() => {
-        const fetchData = async () => {
-            const request = {
-                ...loginRequest,
-                account: accounts[0]
-            };
-            try {
-                let token;
-                try {
-                    const response = await instance.acquireTokenSilent(request);
-                    token = response.accessToken;
-                } catch (e) {
-                    const response = await instance.acquireTokenPopup(request);
-                    token = response.accessToken;
-                }
-
-                const res = await axios.get(`${API_URL}/analyze`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                setData(res.data);
-            } catch (err) {
-                console.error(err);
-            } finally {
-                setLoading(false);
-            }
+    const fetchData = async (forceRefresh = false) => {
+        setLoading(true);
+        const request = {
+            ...loginRequest,
+            account: accounts[0]
         };
+        try {
+            let token;
+            try {
+                const response = await instance.acquireTokenSilent(request);
+                token = response.accessToken;
+            } catch (e) {
+                const response = await instance.acquireTokenPopup(request);
+                token = response.accessToken;
+            }
 
+            const params = {};
+            if (dateRange.start) params.start_date = dateRange.start;
+            if (dateRange.end) params.end_date = dateRange.end;
+            if (forceRefresh) params.force_refresh = true;
+
+            const res = await axios.get(`${API_URL}/analyze`, {
+                headers: { Authorization: `Bearer ${token}` },
+                params
+            });
+            setData(res.data);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [instance, accounts]);
+
+    useEffect(() => {
+        let interval;
+        if (autoRefresh) {
+            interval = setInterval(() => {
+                fetchData(true);
+            }, 60000); // 1 minute
+        }
+        return () => clearInterval(interval);
+    }, [autoRefresh]);
+
+    const handleFilter = () => {
+        fetchData();
+    };
 
     if (loading) return <div className="p-8">Loading Analytics...</div>;
     if (!data) return <div className="p-8 text-red-500">Failed to load data. Ensure backend is running.</div>;
 
+    // ... existing chart data prep ...
     const statusChartData = data.infographic?.data
         ? Object.entries(data.infographic.data).map(([name, value]) => ({ name, value }))
         : [];
@@ -63,7 +88,53 @@ export default function Dashboard() {
 
     return (
         <div className="space-y-6">
-            <h2 className="text-3xl font-bold">Claims Analytics Dashboard</h2>
+            <div className="flex justify-between items-center">
+                <h2 className="text-3xl font-bold">Claims Analytics</h2>
+                <div className="flex gap-4 items-center">
+                    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                        <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-600">
+                            <input
+                                type="checkbox"
+                                checked={autoRefresh}
+                                onChange={(e) => setAutoRefresh(e.target.checked)}
+                                className="rounded text-blue-600"
+                            />
+                            Auto-Refresh
+                        </label>
+                        <button
+                            onClick={() => fetchData(true)}
+                            className="p-1 hover:bg-slate-100 rounded-full text-slate-500"
+                            title="Refresh Now"
+                        >
+                            <span className="text-xl">↻</span>
+                        </button>
+                    </div>
+
+                    <div className="flex gap-2 items-center bg-white p-2 rounded-lg border border-slate-200">
+                        <span className="text-sm font-medium text-slate-500 pl-2">Filter:</span>
+                        <input
+                            type="date"
+                            value={dateRange.start}
+                            onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                            className="border border-slate-300 rounded px-2 py-1 text-sm"
+                        />
+                        <span className="text-slate-400">-</span>
+                        <input
+                            type="date"
+                            value={dateRange.end}
+                            onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                            className="border border-slate-300 rounded px-2 py-1 text-sm"
+                        />
+                        <button
+                            onClick={handleFilter}
+                            className="bg-blue-600 text-white px-3 py-1 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                            disabled={loading}
+                        >
+                            Apply
+                        </button>
+                    </div>
+                </div>
+            </div>
 
             {/* Key Metrics Cards */}
             {data.key_metrics && (
@@ -204,8 +275,8 @@ export default function Dashboard() {
                                     <th className="text-center py-3 px-4 font-semibold text-green-700">Approved</th>
                                     <th className="text-center py-3 px-4 font-semibold text-red-700">Failed</th>
                                     <th className="text-center py-3 px-4 font-semibold text-orange-700">Pending</th>
+                                    <th className="text-center py-3 px-4 font-semibold text-slate-700">Most Common Status</th>
                                     <th className="text-center py-3 px-4 font-semibold text-slate-700">Failure Rate</th>
-                                    <th className="text-center py-3 px-4 font-semibold text-slate-700">Avg Days</th>
                                     <th className="text-center py-3 px-4 font-semibold text-slate-700">Details</th>
                                 </tr>
                             </thead>
@@ -222,15 +293,15 @@ export default function Dashboard() {
                                             <td className="text-center py-3 px-4 text-green-600 font-semibold">{payer.approved}</td>
                                             <td className="text-center py-3 px-4 text-red-600 font-semibold">{payer.failed}</td>
                                             <td className="text-center py-3 px-4 text-orange-600">{payer.pending}</td>
+                                            <td className="text-center py-3 px-4 text-xs font-mono bg-slate-100 rounded px-2 py-1">{payer.most_common_status}</td>
                                             <td className="text-center py-3 px-4">
                                                 <span className={`px-2 py-1 rounded-full text-sm font-semibold ${payer.failure_rate > 30
-                                                        ? 'bg-red-100 text-red-700'
-                                                        : 'bg-green-100 text-green-700'
+                                                    ? 'bg-red-100 text-red-700'
+                                                    : 'bg-green-100 text-green-700'
                                                     }`}>
                                                     {payer.failure_rate}%
                                                 </span>
                                             </td>
-                                            <td className="text-center py-3 px-4">{payer.avg_processing_days}d</td>
                                             <td className="text-center py-3 px-4">
                                                 <button
                                                     onClick={() => setExpandedPayer(expandedPayer === payer.payer ? null : payer.payer)}

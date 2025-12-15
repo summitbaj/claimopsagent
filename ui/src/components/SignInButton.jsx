@@ -7,7 +7,10 @@ export const SignInButton = () => {
 
     const handleLogin = (loginType) => {
         if (loginType === "popup") {
-            instance.loginPopup(loginRequest).catch(e => {
+            instance.loginRedirect({
+                ...loginRequest,
+                prompt: "select_account"
+            }).catch(e => {
                 console.log(e);
             });
         }

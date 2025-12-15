@@ -52,3 +52,5 @@ htmlcov/
 
 # Project specific
 tests/debug_dataverse.py
+data/ingest/
+data/chroma_db/

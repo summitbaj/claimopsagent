@@ -75,7 +75,7 @@ class DataverseClient:
         """
         import logging
         logger = logging.getLogger("dataverse_fetchxml_tool")
-        url = f"{self.base_url}/api/data/v9.2/{entity}?fetchXml="
+        url = f"{self.base_url}/api/data/v9.2/{entity}"
         logger.debug(f"[FetchXMLTool] FetchXML: {fetchxml[:100]}...")
         response = requests.get(url, headers=self._headers(), params={"fetchXml": fetchxml})
         try:
@@ -85,6 +85,25 @@ class DataverseClient:
             raise
         return response.json().get("value", [])
 
+
+    def _map_status_codes(self, record: Dict[str, Any]) -> Dict[str, Any]:
+        """Helper to map integer status codes to string labels."""
+        from app.core.constants import CLAIM_STATUS, CLAIM_TYPE
+        
+        if "smvs_claimstatus" in record:
+            code = record["smvs_claimstatus"]
+            # Check if it's already mapped (in case of double processing) or string
+            if isinstance(code, int):
+                 record["smvs_claimstatus"] = CLAIM_STATUS.get(code, code)
+        
+        if "smvs_claim_type" in record:
+             code = record["smvs_claim_type"]
+             if isinstance(code, int):
+                 record["smvs_claim_type_code"] = code # Keep code
+                 record["smvs_claim_type"] = CLAIM_TYPE.get(code, code)
+                 
+        return record
+
     def get_claim_by_id(self, claim_id: str, access_token: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Fetch a specific claim by ID using FetchXML.
@@ -92,15 +111,28 @@ class DataverseClient:
         from app.dataverse.fetchxml_templates import FETCHXML_CLAIM
         filter_xml = f'<filter type="and"><condition attribute="smvs_claimid" operator="eq" value="{claim_id}" /></filter>'
         fetchxml = FETCHXML_CLAIM.format(filter=filter_xml)
-        return self.fetchxml_query(fetchxml, "smvs_claims", token=access_token)
+        results = self.fetchxml_query(fetchxml, "smvs_claims", token=access_token)
+        # Force label mapping
+        return [self._map_status_codes(r) for r in results]
 
     def get_historical_claims(self, filter_xml: str = '', access_token: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Fetch historical claims using FetchXML and optional filter.
         """
         from app.dataverse.fetchxml_templates import FETCHXML_HISTORICAL_CLAIMS
+        from app.core.constants import CLAIM_TYPE
+        
+        # Auto-correct string labels to IDs in filter
+        name_to_id = {v: k for k, v in CLAIM_TYPE.items()}
+        for label, code in name_to_id.items():
+            if f"value='{label}'" in filter_xml:
+                filter_xml = filter_xml.replace(f"value='{label}'", f"value='{code}'")
+            if f'value="{label}"' in filter_xml:
+                filter_xml = filter_xml.replace(f'value="{label}"', f'value="{code}"')
+                
         fetchxml = FETCHXML_HISTORICAL_CLAIMS.format(filter=filter_xml)
-        return self.fetchxml_query(fetchxml, "smvs_claims", token=access_token)
+        results = self.fetchxml_query(fetchxml, "smvs_claims", token=access_token)
+        return [self._map_status_codes(r) for r in results]
 
     def get_service_lines_by_claim(self, claim_id: str, access_token: Optional[str] = None) -> List[Dict[str, Any]]:
         """
@@ -109,7 +141,6 @@ class DataverseClient:
         from app.dataverse.fetchxml_templates import FETCHXML_SERVICE_LINES
         fetchxml = FETCHXML_SERVICE_LINES.format(claim_id=claim_id)
         return self.fetchxml_query(fetchxml, "smvs_servicelines", token=access_token)
-
     
 
     def update_service_line(self, line_id: str, updates: Dict[str, Any]) -> bool:

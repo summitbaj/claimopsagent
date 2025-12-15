@@ -12,5 +12,7 @@ tiktoken
 fastapi
 uvicorn
 azure-identity
-anthropic-mcp
 pywin32
+python-pptx
+pypdf
+python-docx

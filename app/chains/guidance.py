@@ -5,11 +5,19 @@ from app.core.config import settings
 
 class GuidanceChain:
     def __init__(self):
-        self.llm = ChatOpenAI(
-            api_key=settings.OPENAI_API_KEY,
-            model="gpt-4-turbo-preview",
-            temperature=0.3
-        )
+        if settings.LLM_PROVIDER.lower() == "groq":
+            self.llm = ChatOpenAI(
+                api_key=settings.GROQ_API_KEY,
+                base_url=settings.GROQ_API_URL,
+                model=settings.GROQ_MODEL,
+                temperature=0.3
+            )
+        else:
+            self.llm = ChatOpenAI(
+                api_key=settings.OPENAI_API_KEY,
+                model=settings.OPENAI_MODEL,
+                temperature=0.3
+            )
 
     def _retrieve_sop_docs(self, query: str) -> str:
         """

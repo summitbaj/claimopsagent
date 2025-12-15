@@ -1,10 +1,17 @@
-from fastapi import FastAPI, HTTPException, Header, Depends
+# --- PYDANTIC V2 COMPATIBILITY PATCH START ---
+from app.core.patch_chromadb import apply_chromadb_patch
+apply_chromadb_patch()
+# --- PYDANTIC V2 COMPATIBILITY PATCH END ---
+
+from fastapi import FastAPI, HTTPException, Header, Depends, UploadFile, File
 import json
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from typing_extensions import Annotated
 import logging
+import shutil
+from pathlib import Path
 
 from app.core.telemetry import setup_telemetry
 from app.chains.prediction import PredictionChain
@@ -12,8 +19,9 @@ from app.chains.prediction_configurable import ConfigurablePredictionChain, User
 from app.chains.guidance import GuidanceChain
 from app.chains.correction import CorrectionChain
 from app.chains.analytics import AnalyticsChain
-from app.dataverse.mcp_runner import ensure_loop, run_sync
-from app.dataverse.mcp_client import get_mcp_client
+from app.chains.chat_agent import ChatAgent
+from app.chains.agent_types import ChatRequest
+from app.core.knowledge_base import KnowledgeBase
 
 # Setup Telemetry on startup
 setup_telemetry()
@@ -27,6 +35,12 @@ from app.core.config import settings
 logger.info(f"🔧 MOCK_MODE is set to: {settings.MOCK_MODE}")
 
 app = FastAPI(title="Claims Intelligence Agent API")
+
+@app.on_event("startup")
+async def startup_event():
+    from app.core.auto_ingest import run_auto_ingest
+    logger.info("🚀 Starting ClaimsOps Agent...")
+    run_auto_ingest()
 
 # CORS for React app
 app.add_middleware(
@@ -170,38 +184,107 @@ def apply_correction(req: CorrectionRequest, token: str = Depends(get_token)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/analyze")
-def get_analytics(token: str = Depends(get_token)):
+def get_analytics(
+    start_date: Optional[str] = None, 
+    end_date: Optional[str] = None, 
+    force_refresh: bool = False,
+    token: str = Depends(get_token)
+):
     """Generates analytics report and charts."""
     try:
         chain = AnalyticsChain(token=token)
-        result = chain.generate_report()
+        result = chain.generate_report(start_date=start_date, end_date=end_date, force_refresh=force_refresh)
         return result
     except Exception as e:
+        logger.error(f"[ANALYTICS] Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@app.get("/debug/get-claim/{claim_id}")
-def debug_get_claim(claim_id: str):
-    """Debug helper: call MCP client's get_claim_by_id and return raw MCP response."""
+@app.post("/chat")
+async def chat_query(req: ChatRequest, token: str = Depends(get_token)):
+    """
+    Multi-role chat endpoint that routes queries to appropriate tools.
+    Supports knowledge base, claim analysis, and reporting.
+    """
+    logger.info(f"[CHAT] Query received: {req.query[:100]}...")
     try:
-        logger.info(f"[DEBUG] get_claim_by_id called for {claim_id}")
-        mcp = get_mcp_client()
-        from app.dataverse.mcp_runner import run_sync
-        rows = run_sync(mcp.get_claim_by_id(claim_id), timeout=30)
-        return {"rows": rows}
+        agent = ChatAgent(token=token)
+        result = await agent.process_query(req.query, req.history)
+        return result
     except Exception as e:
-        logger.exception("[DEBUG] Error calling get_claim_by_id")
+        logger.error(f"[CHAT] Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@app.get("/debug/describe/{table_name}")
-def debug_describe_table(table_name: str):
+@app.post("/ingest")
+async def ingest_file(file: UploadFile = File(...)):
+    """
+    Ingest a file (PowerPoint, PDF, or Word) into the knowledge base.
+    """
+    logger.info(f"[INGEST] File upload: {file.filename}")
+    
+    # Validate file type
+    allowed_extensions = ('.pptx', '.ppt', '.pdf', '.docx', '.doc')
+    if not file.filename.endswith(allowed_extensions):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type. Allowed: {', '.join(allowed_extensions)}"
+        )
+    
     try:
-        logger.info(f"[DEBUG] describe_table called for {table_name}")
-        mcp = get_mcp_client()
-        from app.dataverse.mcp_runner import run_sync
-        desc = run_sync(mcp._call_tool('describe_table', arguments={'table_name': table_name}, expect_list=False), timeout=30)
-        return {"description": desc}
+        # Create uploads directory
+        upload_dir = Path("data/uploads")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save file
+        file_path = upload_dir / file.filename
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        logger.info(f"[INGEST] File saved to: {file_path}")
+        
+        # Ingest into knowledge base
+        kb = KnowledgeBase()
+        result = kb.ingest_file(str(file_path))
+        
+        return result
+        
     except Exception as e:
-        logger.exception("[DEBUG] Error calling describe_table")
+        logger.error(f"[INGEST] Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/knowledge-sources")
+def get_knowledge_sources():
+    """Get list of all uploaded knowledge sources."""
+    try:
+        kb = KnowledgeBase()
+        sources = kb.get_uploaded_sources()
+        return {"sources": sources}
+    except Exception as e:
+        logger.error(f"[KNOWLEDGE-SOURCES] Error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/knowledge-sources/{filename}")
+def delete_knowledge_source(filename: str):
+    """Delete a knowledge source."""
+    try:
+        kb = KnowledgeBase()
+        result = kb.delete_source(filename)
+        if not result.get("success"):
+            raise HTTPException(status_code=404, detail=result.get("error"))
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[DELETE-SOURCE] Error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/knowledge-stats")
+def get_knowledge_stats():
+    """Get statistics about the knowledge base."""
+    try:
+        kb = KnowledgeBase()
+        return kb.get_collection_stats()
+    except Exception as e:
+        logger.error(f"[KNOWLEDGE-STATS] Error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
